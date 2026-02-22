@@ -1,11 +1,17 @@
 # Project Directory Structure
 
-Generated on: 2026-02-22 15:13:15
+Generated on: 2026-02-22 15:48:50
 
 ```
 crick/
 ├── data/
 │   └── stageddata/
+│       ├── deliveries/
+│       │   └── WODI/
+│       │       └── chunk_0.parquet
+│       ├── matches/
+│       │   └── WODI/
+│       │       └── chunk_0.parquet
 │       ├── leagues.parquet
 │       ├── players.parquet
 │       ├── registry.db
@@ -22,7 +28,8 @@ crick/
 │   ├── download.log
 │   ├── error_players.log
 │   ├── missing_players.log
-│   └── parsing.log
+│   ├── parsing.log
+│   └── skippedmatches.log
 ├── src/
 │   ├── downloadespn.py
 │   ├── extractleagues.py
