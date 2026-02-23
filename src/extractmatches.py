@@ -2,7 +2,7 @@
 # FILE    : `extractmatches.py`
 # This extracts match and delivery data with full schema support
 # WRITTEN BY : RAJ
-# LAST UPDATED : 2026-02-22
+# LAST UPDATED : 2026-02-23
 #  =========================================================
 import json
 import os
@@ -12,9 +12,19 @@ from concurrent.futures import ProcessPoolExecutor
 from metaregis import MetadataRegistry
 
 REGISTRY = MetadataRegistry()
-MATCHES_DIR = "./data/rawdata/matches/WODI"
-STAGED_DELIVERIES = "./data/stageddata/deliveries/WODI"
-STAGED_MATCHES = "./data/stageddata/matches/WODI"
+SELECT_DATA = 'WT20I'
+MATCHES_DIR = f"./data/rawdata/matches/{SELECT_DATA}"
+STAGED_DELIVERIES = f"./data/stageddata/deliveries/{SELECT_DATA}"
+STAGED_MATCHES = f"./data/stageddata/matches/{SELECT_DATA}"
+STAGED_PEOPLE = f"./data/stageddata/peoplematchdata/{SELECT_DATA}"
+TEAM_DATA = "./data/stageddata/teams.parquet"
+
+
+teamregistry = pd.read_parquet(TEAM_DATA).set_index('name')['team_id'].to_dict() # we will need this to map team names to ids in the match records, since the deliveries only have team names and we want to link them to ids for easier analysis later
+# for 23 minutes i was uccking up what the hell then realized that i was mapping name to id and not other way round, fuck dictionary
+
+def getteamid(name):
+    return teamregistry.get(name, name) if name else None
 
 def process_match_file(filepath):
     file_hash = REGISTRY.get_file_hash(filepath)
@@ -38,7 +48,13 @@ def process_match_file(filepath):
 
         people = info.get('registry', {}).get('people', {})
         def get_p(name): return people.get(name, name) if name else None
+        peoplmatches =[]
+        for k,v in people.items():
 
+            peoplmatches.append({
+                'matchid': match_id,
+                'personid': v})
+        
         # --- 1. Match Metadata ---
         outcome = info.get('outcome', {})
         by = outcome.get('by', {})
@@ -54,27 +70,33 @@ def process_match_file(filepath):
             team_stats[t_name] = {'runs': t_runs, 'wickets': t_wicks, 'balls': t_balls}
 
         teams = info.get('teams', [None, None])
-        
+        ev = ""
+        x = (info.get('event', {}).get('stage', '') + 'Match,') if info.get('event', {}).get('stage') else ('Match ' + str(info.get('event', {}).get('match_number', '')) + ',')
+        if info.get('event'):
+            ev = x
+            ev += info.get('event', {}).get('name', '')
+            # ev = info.get('event', {}).get('name', '')
         match_record = {
             'matchid': match_id,
             'season': info.get('season'),
             'date': info.get('dates', [None])[0],
             'city': info.get('city'),
             'venue': info.get('venue'),
-            'event': info.get('event', {}).get('name'),
+            'event': ev,
+            'tourmatch' : x,
             'gender': 'M' if info.get('gender') == 'male' else 'F',
             'type': info.get('match_type'),
             'overs': info.get('overs'),
-            'team1id': teams[0],
-            'team2id': teams[1],
-            'tosswin': toss.get('winner'),
+            'team1id': getteamid(teams[0]),
+            'team2id': getteamid(teams[1]),
+            'tosswin': getteamid(toss.get('winner')),
             'decision': toss.get('decision'),
             'referee': get_p(info.get('officials', {}).get('match_referees', [None])[0]),
             'umpire1': get_p(info.get('officials', {}).get('umpires', [None, None])[0]),
-            'umpire2': get_p(info.get('officials', {}).get('umpires', [None, None])[1]),
+            'umpire2': get_p(info.get('officials', {}).get('umpires', [None, None])[1]) if len(info.get('officials', {}).get('umpires', [])) > 1 else None,
             'tvumpire': get_p(info.get('officials', {}).get('tv_umpires', [None])[0]),
             'isTie': 1 if outcome.get('result') == 'tie' else 0,
-            'winner': outcome.get('winner'),
+            'winner': getteamid(outcome.get('winner')),
             'byRuns': by.get('runs', 0),
             'byWickets': by.get('wickets', 0),
             'team1score': team_stats.get(teams[0], {}).get('runs', 0),
@@ -152,7 +174,7 @@ def process_match_file(filepath):
                             if w.get('kind') not in ['run out', 'retired out', 'obstructing the field']:
                                 bowl_stat['wicks'] += 1
 
-                    # Phase Calculation (Simplified)
+
                     if info.get('match_type') == 'ODI':
                         phase = "Powerplay" if over_num < 10 else ("Middle" if over_num < 40 else "Death")
                     else:
@@ -160,9 +182,9 @@ def process_match_file(filepath):
 
                     deliveries_list.append({
                         'matchid': match_id,
-                        'inning': inn_idx,
+                        'inning': inn_idx,  # 0 indexed
                         'gender': match_record['gender'],
-                        'battingteam': batting_team,
+                        'battingteam': getteamid(batting_team), # for now we keep team name here, can map to id later...
                         'over_num': over_num,
                         'ball_num': ball_idx,
                         'phase': phase,
@@ -202,10 +224,10 @@ def process_match_file(filepath):
                 target_runs = curr_runs + 1
 
         REGISTRY.mark_processed(filepath, 'match', file_hash)
-        return match_record, deliveries_list
+        return match_record, deliveries_list, peoplmatches
 
     except Exception as e:
-        print(f"Error flattening {filepath}: {e}")
+        print(f"Error flattening {filepath}: {e}", end='\r')
         with open(f"./logs/error_matches.log", "a") as logf:
             logf.write(f"{filepath} error: {e}\n Traceback: {traceback.format_exc()}\n\n")
         return None
@@ -213,30 +235,51 @@ def process_match_file(filepath):
 def main():
     os.makedirs(STAGED_DELIVERIES, exist_ok=True)
     os.makedirs(STAGED_MATCHES, exist_ok=True)
-    
+    os.makedirs(STAGED_PEOPLE, exist_ok=True)
     match_files = glob.glob(f"{MATCHES_DIR}/*.json")
     
-    batch_matches, batch_deliveries = [], []
+    batch_matches, batch_deliveries,batch_ppl = [], [],[]
     batch_counter = 0
     df = pd.DataFrame(batch_matches)
     if 'season' in df.columns:
          df['season'] = df['season'].astype(str)
-    
-    with ProcessPoolExecutor(max_workers=20) as executor:
-        for result in executor.map(process_match_file, match_files):
-            if result:
-                m_rec, d_list = result
-                batch_matches.append(m_rec)
-                batch_deliveries.extend(d_list)
-                
-                if len(batch_matches) >= 500:
-                    df.to_parquet(f"{STAGED_MATCHES}/chunk_{batch_counter}.parquet", index=False)
-                    df.to_parquet(f"{STAGED_DELIVERIES}/chunk_{batch_counter}.parquet", index=False)
-                    batch_matches, batch_deliveries = [], []
-                    batch_counter += 1
-                    print(f"Dumped chunk {batch_counter}...", end='\r')
+         
+    if 'tourmatch' in df.columns:
+            df['tourmatch'] = df['tourmatch'].astype(str)
+    try:
+        with ProcessPoolExecutor(max_workers=40) as executor:
+            for result in executor.map(process_match_file, match_files):
+                if result:
+                    m_rec, d_list, p_list = result
+                    batch_matches.append(m_rec)
+                    batch_deliveries.extend(d_list)
+                    batch_ppl.extend(p_list)
+                    
+                    if len(batch_matches) >= 500:
+                        df = pd.DataFrame(batch_matches)
+                        if 'season' in df.columns:
+                            df['season'] = df['season'].astype(str)
+                        if 'tourmatch' in df.columns:
+                                df['tourmatch'] = df['tourmatch'].astype(str)
+                        df.to_parquet(f"{STAGED_MATCHES}/chunk_{batch_counter}.parquet", index=False)
+                        df.to_parquet(f"{STAGED_DELIVERIES}/chunk_{batch_counter}.parquet", index=False)
+                        df_ppl = pd.DataFrame(batch_ppl)
+                        df_ppl.to_parquet(f"{STAGED_PEOPLE}/chunk_{batch_counter}.parquet", index=False)
+                        batch_matches, batch_deliveries, batch_ppl = [], [], []
+                        batch_counter += 1
+                        print(f"Dumped chunk {batch_counter}...", end='\r')
+    except Exception as e:
+        print(f"Error during parallel processing: {e}\n{traceback.format_exc()}")
+        # logf.write()
+        with open(f"./logs/error_matches.log", "a") as logf:
+            logf.write(f"Error during parallel processing: {e}\n{traceback.format_exc()}\n\n")
 
     if batch_matches:
+        df = pd.DataFrame(batch_matches)
+        if 'season' in df.columns:
+            df['season'] = df['season'].astype(str)
+        if 'tourmatch' in df.columns:
+            df['tourmatch'] = df['tourmatch'].astype(str)
         df.to_parquet(f"{STAGED_MATCHES}/chunk_{batch_counter}.parquet", index=False)
         df.to_parquet(f"{STAGED_DELIVERIES}/chunk_{batch_counter}.parquet", index=False)
 

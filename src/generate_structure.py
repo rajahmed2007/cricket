@@ -23,13 +23,13 @@ def generate_tree(directory, prefix="", ignore_dirs=None, ignore_files=None, col
     """
     if ignore_dirs is None:
         ignore_dirs = {'.git', '__pycache__', '.venv', 'venv', 'node_modules', 
-                       '.dbt', 'target', 'dbt_packages', '.pytest_cache', 'rawdata'}
+                       '.dbt', 'target', 'dbt_packages', '.pytest_cache', 'rawdata', '.idea', '.vscode'}
     
     if ignore_files is None:
         ignore_files = {'.pyc', '.pyo', '.pyd', '.so', '.dll', '.dylib'}
     
     if collapse_extensions is None:
-        collapse_extensions = {'.json'}
+        collapse_extensions = {'.json', '.csv', '.parquet', '.log'}
     
     tree_lines = []
     directory = Path(directory)
@@ -137,5 +137,5 @@ if __name__ == "__main__":
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
     
-    print(f"Analyzing directory: {project_root}")
+    # print(f"Analyzing directory: {project_root}")
     save_structure(project_root)

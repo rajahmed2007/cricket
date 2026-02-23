@@ -4,11 +4,12 @@
 run_pipeline: extract transform
 
 extract:
-	python src/extractmatches.py
-	python src/extractplayers.py
+	python src/extractleagues.py
 	python src/extractteams.py
+	python src/extractplayers.py
+	python src/extractmatches.py
 
-# Run dbt to build the DuckDB database
+
 transform:
 	cd dbtcrick && dbt build
 

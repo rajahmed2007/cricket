@@ -2,3 +2,6 @@ data/
 logs/
 src/generate_structure.py
 src/__pycache__/
+.idea/
+.vscode/
+./src/generate_structure.py
