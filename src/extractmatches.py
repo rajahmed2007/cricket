@@ -13,6 +13,19 @@ from metaregis import MetadataRegistry
 
 REGISTRY = MetadataRegistry()
 SELECT_DATA = 'WT20I'
+# 
+# as of today, i will change a bit
+# i will change the code i mean, not  "i will change", i wont change, sher sher haiewehtghjer hj
+
+
+# # i used cricsheet earlier 
+##### but found a bit less adequecy and built my own equivalent with zonal, speed etc data
+
+# so i will update, but with samw
+# # 
+# 
+# 
+
 MATCHES_DIR = f"./data/rawdata/matches/{SELECT_DATA}"
 STAGED_DELIVERIES = f"./data/stageddata/deliveries/{SELECT_DATA}"
 STAGED_MATCHES = f"./data/stageddata/matches/{SELECT_DATA}"
