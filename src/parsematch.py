@@ -37,7 +37,7 @@ matchdb = []
 dis = "../database/"
 os.makedirs(dis, exist_ok=True)
 MATCHES = "../data/raw/matches"
-OUTDIR = "../data/processed/cricdatacleanedandwithoutanyintrusivethoughtsandidespisecodingespeciallyfucklifefuckbigbang/"
+OUTDIR = "../data/processed/cricdata/"
 os.makedirs(OUTDIR, exist_ok=True)
 ###################################################################
 
@@ -67,7 +67,8 @@ def parsematch(id, registry):
     with open(f"{MATCHES}/{id}/scorecard.json", "r") as f:
         d = json.load(f)
         maindetail = d.get('Matchdetail', {})
-
+        if not maindetail:
+            return
         awards = maindetail.get("Awards", {})
         Awards = []
         if awards:
@@ -137,7 +138,7 @@ def parsematch(id, registry):
             name = Series_raw.get("Name")
             tourid_raw = Series_raw.get("Tour")
 
-            if tourid_raw is not None:
+            if tourid_raw:
                 tourid = idmap(int(tourid_raw))
                 tourname = Series_raw.get("Tour_Name")
                 has_stand = False if Series_raw.get("Has_standings") == "false" else True
@@ -150,7 +151,7 @@ def parsematch(id, registry):
                     })
                     alrea.append(tourid)
 
-            if sirid_raw is not None:
+            if sirid_raw:
                 seriesid = idmap(int(sirid_raw))
                 if seriesid not in alrea:
                     serieses.append({
@@ -189,7 +190,7 @@ def parsematch(id, registry):
             latitude = Venue_raw.get("Latitude")
             longitude = Venue_raw.get("Longitude")
 
-            if venid_raw is not None:
+            if venid_raw:
                 vid = idmap(int(venid_raw))
                 if vid not in alrea:
                     venues.append({
@@ -202,7 +203,9 @@ def parsematch(id, registry):
                     })
                     alrea.append(vid)
 
-            weathehr = Venue_raw.get("Venue_Weather", {})
+            weathehr = Venue_raw.get("Venue_Weather", {}) 
+            if not weathehr:
+                weathehr = {}
             wname = weathehr.get("Weather")
             desc = weathehr.get("Description")
             humidity = weathehr.get("Humidity")
@@ -220,6 +223,8 @@ def parsematch(id, registry):
             }
 
             pitch = Venue_raw.get("Pitch_Detail", {})
+            if not pitch:
+                pitch = {}
             Pitch = {
                 "Suited_For": pitch.get("Pitch_Suited_For"),
                 "Surface": pitch.get("Pitch_Surface"),
@@ -234,7 +239,7 @@ def parsematch(id, registry):
 
         toss_won_raw = maindetail.get("Tosswonby")
         Toss = {
-            "won": idmap(int(toss_won_raw)) if toss_won_raw is not None else None,
+            "won": idmap(int(toss_won_raw)) if toss_won_raw else None,
             "decision": maindetail.get("Toss_elected_to")
         }
 
@@ -265,7 +270,7 @@ def parsematch(id, registry):
         winteam_raw = maindetail.get("Winningteam")
         Outcome = {
             "result": res_str,
-            "WinTeam": idmap(int(winteam_raw)) if winteam_raw is not None else None,
+            "WinTeam": idmap(int(winteam_raw)) if winteam_raw else None,
             "Winmargin": maindetail.get("Winmargin"),
             "statement": maindetail.get("Equation"),
         }
@@ -279,6 +284,8 @@ def parsematch(id, registry):
             Summary["2ndInningTotal"] = f"{In[1].get('Total')}/{In[1].get('Wickets')}  ({In[1].get('Overs')})"
 
         alalal = d.get("Matchequation", {})
+        if not alalal:
+            alalal = {}
         t1_name = alalal.get('Team1_name') or alalal.get('Team1_Name')
         t2_name = alalal.get('Team2_Name') or alalal.get('Team2_name')
         background = {
@@ -324,8 +331,7 @@ def parsematch(id, registry):
             "venue": Venue,
             "tosswinner": Toss.get("won"),
             "tossdecision": Toss.get("decision"),
-            "outcome": Outcome.get("winteam"),
-            "Pom": Awards.get("player") if Awards else None
+            "outcome": Outcome.get("winteam")
         }
         matchdb.append(b1)
 
@@ -511,9 +517,11 @@ with ThreadPoolExecutor(max_workers=80) as executor:
             except Exception as e:
 #                 # print(f"Error processing match {future}: {e}")
                 with open("../logs/matchparsing.log", "a") as l:
+                    # l.write(id)
                     l.write(traceback.format_exc())
             finally:
                 pbar.update(1)
+        
     executor.shutdown()
 # Leagues = []
 # serieses = []
@@ -527,11 +535,11 @@ df3 = pd.DataFrame(venues)
 df4 = pd.DataFrame(Leagues)
 df5 = pd.DataFrame(noBbBd)
 df6 = pd.DataFrame(matchdb)
-# df2 = pd.concat([pd.read_parquet(f"./{dis}/tours.parquet"),df2]).drop_duplicates()
-# df1 = pd.concat([pd.read_parquet(f"./{dis}/serieses.parquet"),df1]).drop_duplicates()
-# df3 = pd.concat([pd.read_parquet(f"./{dis}/venues.parquet"),df3]).drop_duplicates()
-# df4 = pd.concat([pd.read_parquet(f"./{dis}/leagues.parquet"),df4]).drop_duplicates()
-# df5 = pd.concat([pd.read_parquet(f"./{dis}/NoBallbyBall.parquet"),df5]).drop_duplicates()
+df2 = pd.concat([pd.read_parquet(f"./{dis}/tours.parquet"),df2]).drop_duplicates()
+df1 = pd.concat([pd.read_parquet(f"./{dis}/serieses.parquet"),df1]).drop_duplicates()
+df3 = pd.concat([pd.read_parquet(f"./{dis}/venues.parquet"),df3]).drop_duplicates()
+df4 = pd.concat([pd.read_parquet(f"./{dis}/leagues.parquet"),df4]).drop_duplicates()
+df5 = pd.concat([pd.read_parquet(f"./{dis}/NoBallbyBall.parquet"),df5]).drop_duplicates()
 df1.to_parquet(f"./{dis}/serieses.parquet")
 df2.to_parquet(f"./{dis}/tours.parquet")
 df3.to_parquet(f"./{dis}/venues.parquet")
