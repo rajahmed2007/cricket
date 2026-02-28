@@ -27,6 +27,7 @@ serieses = []
 tours = []
 venues = []
 noBbBd = []
+matchdb = []
 ###################################################################
 
 
@@ -309,6 +310,24 @@ def parsematch(id, registry):
             "summary": Summary,
             "awards": Awards if Awards else None
         }
+        
+        b1 = {
+            "id": id,
+            "date": date,
+            "type": type,
+            "total_innings": len_in,
+            "number": num,
+            "daynight": daynight,
+            "league": League.get("id"),
+            "series": Series.get("id"),
+            "tours": Tour.get("id"),
+            "venue": Venue,
+            "tosswinner": Toss.get("won"),
+            "tossdecision": Toss.get("decision"),
+            "outcome": Outcome.get("winteam"),
+            "Pom": Awards.get("player") if Awards else None
+        }
+        matchdb.append(b1)
 
         # basics = remove_nones(basics)
 
@@ -507,6 +526,7 @@ df2 = pd.DataFrame(tours)
 df3 = pd.DataFrame(venues)
 df4 = pd.DataFrame(Leagues)
 df5 = pd.DataFrame(noBbBd)
+df6 = pd.DataFrame(matchdb)
 # df2 = pd.concat([pd.read_parquet(f"./{dis}/tours.parquet"),df2]).drop_duplicates()
 # df1 = pd.concat([pd.read_parquet(f"./{dis}/serieses.parquet"),df1]).drop_duplicates()
 # df3 = pd.concat([pd.read_parquet(f"./{dis}/venues.parquet"),df3]).drop_duplicates()
@@ -517,6 +537,7 @@ df2.to_parquet(f"./{dis}/tours.parquet")
 df3.to_parquet(f"./{dis}/venues.parquet")
 df4.to_parquet(f"./{dis}/leagues.parquet")
 df5.to_parquet(f"./{dis}/NoBallbyBall.parquet")
+df6.to_parquet(f"./{dis}/matches.parquet")
 
 t2 = time.time()
 print(f"Time taken: {t2 - t1} seconds")
